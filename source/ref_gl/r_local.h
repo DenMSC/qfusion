@@ -612,6 +612,8 @@ bool R_AddSurfToDrawList( drawList_t *list, const entity_t *e, const mfog_t *fog
 void R_AddVBOSlice( unsigned int index, unsigned int numVerts, unsigned int numElems, 
 	unsigned int firstVert, unsigned int firstElem );
 vboSlice_t *R_GetVBOSlice( unsigned int index );
+bool R_AddIndirectCmd( unsigned int index, unsigned int first, unsigned count );
+drawElementsIndirectCommand_t *R_GetIndirectCmd( unsigned int index );
 
 void R_InitDrawLists( void );
 
@@ -782,6 +784,8 @@ void 		R_UploadVBOElemData( mesh_vbo_t *vbo, int vertsOffset, int elemsOffset,
 	const mesh_t *mesh, vbo_hint_t hint );
 vattribmask_t R_UploadVBOInstancesData( mesh_vbo_t *vbo, int instOffset,
 	int numInstances, instancePoint_t *instances );
+unsigned int R_CreateDrawIndirectVBO( size_t size );
+void		R_ReleaseDrawIndirectVBO( unsigned id );
 void		R_FreeVBOsByTag( vbo_tag_t tag );
 void		R_FreeUnusedVBOs( void );
 void 		R_ShutdownVBO( void );

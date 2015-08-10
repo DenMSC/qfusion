@@ -66,6 +66,9 @@ void R_ClearDrawList( drawList_t *list )
 	if( list->vboSlices ) {
 		memset( list->vboSlices, 0, sizeof( *list->vboSlices ) * list->maxVboSlices );
 	}
+	if( list->indirectCmds ) {
+		memset( list->indirectCmds, 0, sizeof( *list->indirectCmds ) * list->maxIndirectsCmds );
+	}
 }
 
 /*
@@ -277,6 +280,8 @@ void R_AddVBOSlice( unsigned int index, unsigned int numVerts, unsigned int numE
 		slice->firstElem = firstElem;
 		slice->numVerts = numVerts;
 		slice->numElems = numElems;
+		slice->numVertsReal = numVerts;
+		slice->numElemsReal = numElems;
 	}
 	else {
 		list->numSliceVertsReal -= slice->numVerts;
@@ -294,6 +299,9 @@ void R_AddVBOSlice( unsigned int index, unsigned int numVerts, unsigned int numE
 			slice->numVerts = max( slice->numVerts, numVerts + firstVert - slice->firstVert );
 			slice->numElems = max( slice->numElems, numElems + firstElem - slice->firstElem );
 		}
+
+		slice->numVertsReal += numVerts;
+		slice->numElemsReal += numElems;
 	}
 
 	list->numSliceVerts += numVerts;
@@ -313,6 +321,73 @@ vboSlice_t *R_GetVBOSlice( unsigned int index )
 		return NULL;
 	}
 	return &list->vboSlices[index];
+}
+
+/*
+* R_ReserveIndirectCmds
+*/
+static void R_ReserveIndirectCmds( drawList_t *list, unsigned int minCmds )
+{
+	unsigned int oldSize, newSize;
+	drawElementsIndirectCommand_t *cmds, *newCmds;
+
+	oldSize = list->maxIndirectsCmds;
+	newSize = max( minCmds, oldSize * 2 );
+
+	cmds = list->indirectCmds;
+	newCmds = R_Malloc( newSize * sizeof( drawElementsIndirectCommand_t ) );
+	if( cmds ) {
+		memcpy( newCmds, cmds, oldSize * sizeof( drawElementsIndirectCommand_t ) );
+		R_Free( cmds );
+	}
+
+	list->indirectCmds = newCmds;
+	list->maxIndirectsCmds = newSize;
+}
+
+/*
+* R_AddIndirectCmd
+*/
+bool R_AddIndirectCmd( unsigned int index, unsigned int firstElem, unsigned count )
+{
+	drawList_t *list = rn.meshlist;
+	drawElementsIndirectCommand_t *cmd;
+
+	if( !glConfig.ext.multi_draw_indirect ) {
+		return false;
+	}
+
+	if( index >= list->maxIndirectsCmds ) {
+		unsigned int minCmds = index + 1;
+		if( rsh.worldBrushModel ) {
+			minCmds = max( rsh.worldBrushModel->numsurfaces, minCmds );
+		}
+		R_ReserveIndirectCmds( list, minCmds );
+	}
+
+	cmd = &list->indirectCmds[index];
+
+	assert( cmd->count == 0 );
+
+	cmd->firstElement = firstElem;
+	cmd->count = count;
+	cmd->instanceCount = 1;
+	cmd->baseVertex = 0;
+	cmd->baseInstance = 0;
+	return true;
+}
+
+/*
+* R_GetIndirectCmd
+*/
+drawElementsIndirectCommand_t *R_GetIndirectCmd( unsigned int index )
+{
+	drawList_t *list = rn.meshlist;
+
+	if( index >= list->maxIndirectsCmds ) {
+		return NULL;
+	}
+	return &list->indirectCmds[index];
 }
 
 static const beginDrawSurf_cb r_beginDrawSurfCb[ST_MAX_TYPES] =

@@ -48,7 +48,16 @@ typedef struct
 {
 	unsigned int		numVerts, numElems;
 	unsigned int		firstVert, firstElem;
+	unsigned int		numVertsReal, numElemsReal;
 } vboSlice_t;
+
+typedef  struct {
+	unsigned int		count;
+	unsigned int		instanceCount;
+	unsigned int		firstElement;
+	unsigned int		baseVertex;
+	unsigned int		baseInstance;
+} drawElementsIndirectCommand_t;
 
 typedef struct
 {
@@ -64,6 +73,9 @@ typedef struct
 
 	unsigned int		maxVboSlices;
 	vboSlice_t			*vboSlices;
+
+	unsigned int		maxIndirectsCmds;
+	drawElementsIndirectCommand_t *indirectCmds;
 
 	unsigned			numSliceVerts, numSliceVertsReal;
 	unsigned			numSliceElems, numSliceElemsReal;

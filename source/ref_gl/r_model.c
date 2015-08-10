@@ -569,6 +569,8 @@ merge:
 			drawSurf->superLightStyle = surf->superLightStyle;
 			drawSurf->instances = surf->instances;
 			drawSurf->numInstances = surf->numInstances;
+			drawSurf->firstBSPSurf = numSurfaces - numUnmappedSurfaces;
+			drawSurf->numBSPSurfs = 1;
 
 			// upload vertex and elements data for face itself
 			surf->drawSurf = drawSurf;
@@ -597,11 +599,12 @@ merge:
 					vcount += mesh2->numVerts;
 					ecount += mesh2->numElems;
 					numUnmappedSurfaces--;
+
+					drawSurf->numBSPSurfs++;
+					drawSurf->numVerts += mesh2->numVerts;
+					drawSurf->numElems += mesh2->numElems;
 				}
 			}
-
-			drawSurf->numVerts = vcount;
-			drawSurf->numElems = ecount;
 
 			*vbo_total_size += vbo->arrayBufferSize + vbo->elemBufferSize;
 		}

@@ -973,6 +973,12 @@ QGL_FUNC_OPT(void, glTexSubImage3D, (GLenum target, GLint level, GLint xoffset, 
 #endif
 #endif
 
+#ifndef GL_ES_VERSION_2_0
+#define GL_DRAW_INDIRECT_BUFFER 0x8F3F
+QGL_EXT(void, glMultiDrawArraysIndirect, (GLenum mode, const void *indirect, GLsizei drawcount, GLsizei stride));
+QGL_EXT(void, glMultiDrawElementsIndirect, (GLenum mode, GLenum type, const void *indirect, GLsizei drawcount, GLsizei stride));
+#endif
+
 // WGL_EXT Functions
 QGL_WGL_EXT(const char *, wglGetExtensionsStringEXT, (void));
 QGL_WGL_EXT(BOOL, wglGetDeviceGammaRamp3DFX, (HDC, WORD *));

@@ -180,10 +180,10 @@ bool R_DrawBSPSurf( const entity_t *e, const shader_t *shader, const mfog_t *fog
 	const vboSlice_t *slice;
 	const vboSlice_t *shadowSlice;
 	static const vboSlice_t nullSlice = { 0 };
-	int firstVert, firstElem;
-	int numVerts, numElems;
-	int firstShadowVert, firstShadowElem;
-	int numShadowVerts, numShadowElems;
+	unsigned int firstVert, firstElem;
+	unsigned int numVerts, numElems;
+	unsigned int firstShadowVert, firstShadowElem;
+	unsigned int numShadowVerts, numShadowElems;
 	unsigned shadowBits, dlightBits;
 
 	slice = R_GetVBOSlice( drawSurf - rsh.worldBrushModel->drawSurfaces );
@@ -240,6 +240,10 @@ bool R_DrawBSPSurf( const entity_t *e, const shader_t *shader, const mfog_t *fog
 		RB_DrawElementsInstanced( firstVert, numVerts, firstElem, numElems, 
 			firstShadowVert, numShadowVerts, firstShadowElem, numShadowElems,
 			drawSurf->numInstances, drawSurf->instances );
+	}
+	else if( drawSurf->numIndirectCmds && slice->numElems != slice->numElemsReal ) {
+		drawElementsIndirectCommand_t *cmd = R_GetIndirectCmd( drawSurf->firstBSPSurf );
+		RB_MultiDrawElementsIndirect( cmd, drawSurf->numIndirectCmds, sizeof( *cmd ) * drawSurf->numIndirectCmds );
 	}
 	else {
 		RB_DrawElements( firstVert, numVerts, firstElem, numElems, 
@@ -323,6 +327,7 @@ static void R_AddSurfaceToDrawList( const entity_t *e, const msurface_t *surf, c
 			dist = 0;
 		}
 		drawSurf->visFrame = rf.frameCount;
+		drawSurf->numIndirectCmds = 0;
 
 		if( !R_AddSurfToDrawList( rn.meshlist, e, fog, shader, dist, 0, portalSurface, drawSurf ) ) {
 			return;
@@ -332,8 +337,18 @@ static void R_AddSurfaceToDrawList( const entity_t *e, const msurface_t *surf, c
 		}
 	}
 
-	// keep track of the actual vbo chunk we need to render
-	R_AddSurfaceVBOSlice( surf, 0 );
+	if( surf->visFrame != rf.frameCount ) {
+		// keep track of the actual vbo chunk we need to render
+		R_AddSurfaceVBOSlice( surf, 0 );
+
+		if( R_AddIndirectCmd( drawSurf->firstBSPSurf + drawSurf->numIndirectCmds, 
+			drawSurf->firstVboElem + surf->firstDrawSurfElem, surf->mesh->numElems ) ) {
+			drawSurf->numIndirectCmds++;
+		}
+	}
+	else {
+		assert( drawSurf->numIndirectCmds > 0 );
+	}
 
 	// dynamic lights that affect the surface
 	if( dlightBits ) {
@@ -483,12 +498,12 @@ bool R_AddBrushModelToDrawList( const entity_t *e )
 			continue;
 		}
 		if( surf->visFrame != rf.frameCount ) {
-			surf->visFrame = rf.frameCount;
-
 			surfDlightBits = R_SurfPotentiallyLit( surf ) ? dlightBits : 0;
 			surfShadowBits = R_SurfPotentiallyShadowed( surf ) ? shadowBits : 0;
 
 			R_AddSurfaceToDrawList( e, surf, fog, 0, surfDlightBits, surfShadowBits, distance );
+
+			surf->visFrame = rf.frameCount;
 		}
 	}
 

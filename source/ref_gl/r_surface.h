@@ -57,6 +57,10 @@ typedef struct
 	unsigned int numInstances;
 	instancePoint_t *instances;
 
+	unsigned int firstBSPSurf;
+	unsigned int numBSPSurfs;
+	unsigned int numIndirectCmds;
+
 	unsigned int numVerts;
 	unsigned int numElems;
 } drawSurfaceBSP_t;

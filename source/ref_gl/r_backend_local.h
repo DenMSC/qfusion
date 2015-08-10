@@ -29,6 +29,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define MAX_BATCH_ELEMENTS			MAX_BATCH_VERTS*6
 #define MAX_BATCH_TRIANGLES			MAX_BATCH_ELEMENTS/3
 
+#define DRAW_INDIRECT_BUFFER_SIZE	1024*1024
+
 typedef struct r_backend_stats_s
 {
 	unsigned int numVerts, numElems;
@@ -62,6 +64,7 @@ typedef struct r_backend_s
 
 		int 			currentArrayVBO;
 		int 			currentElemArrayVBO;
+		int 			currentDrawIndirectVBO;
 
 		int				faceCull;
 		bool			frontFace;
@@ -114,9 +117,15 @@ typedef struct r_backend_s
 	rbDrawElements_t batches[RB_VBO_NUM_STREAMS];
 	rbDrawElements_t streamOffset[RB_VBO_NUM_STREAMS];
 	mesh_vbo_t *streamVBOs[RB_VBO_NUM_STREAMS];
+	unsigned indirectDrawBufferVBO;
 
 	instancePoint_t *drawInstances;
 	int maxDrawInstances;
+
+	const void *indirect;
+	unsigned int drawIndirectCount;
+	unsigned int drawIndirectSize;
+	unsigned int drawIndirectOffset;
 
 	rbDrawElements_t drawElements;
 	rbDrawElements_t drawShadowElements;

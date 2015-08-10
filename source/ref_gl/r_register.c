@@ -353,6 +353,15 @@ static const gl_extension_func_t gl_ext_texture3D_EXT_funcs[] =
 	,GL_EXTENSION_FUNC_EXT(NULL,NULL)
 };
 
+/* GL_ARB_multi_draw_indirect */
+static const gl_extension_func_t gl_ext_multi_draw_indirect_ARB_func[] =
+{
+	 GL_EXTENSION_FUNC(MultiDrawArraysIndirect)
+	,GL_EXTENSION_FUNC(MultiDrawElementsIndirect)
+
+	,GL_EXTENSION_FUNC_EXT(NULL,NULL)
+};
+
 #else // GL_ES_VERSION_2_0
 
 /* GL_ANGLE_framebuffer_blit */
@@ -483,6 +492,7 @@ static const gl_extension_t gl_extensions_decl[] =
 	,GL_EXTENSION_EXT( EXT, texture_array, 1, false, false, NULL, texture3D )
 	,GL_EXTENSION( EXT, packed_depth_stencil, false, false, NULL )
 	,GL_EXTENSION( SGIS, texture_lod, false, false, NULL )
+	,GL_EXTENSION_EXT( ARB, multi_draw_indirect, 1, false, false, &gl_ext_multi_draw_indirect_ARB_func, texture_lod )
 
 	// memory info
 	,GL_EXTENSION( NVX, gpu_memory_info, true, false, NULL )
@@ -728,7 +738,7 @@ static void R_PrintMemoryInfo( void )
 */
 static void R_FinalizeGLExtensions( void )
 {
-	int versionMajor, versionMinor;
+	int versionMajor = 0, versionMinor = 0, versionUpdate = '0';
 	int val;
 	cvar_t *cvar;
 
@@ -736,9 +746,9 @@ static void R_FinalizeGLExtensions( void )
 #ifdef GL_ES_VERSION_2_0
 	sscanf( glConfig.versionString, "OpenGL ES %d.%d", &versionMajor, &versionMinor );
 #else
-	sscanf( glConfig.versionString, "%d.%d", &versionMajor, &versionMinor );
+	sscanf( glConfig.versionString, "%d.%d.%c", &versionMajor, &versionMinor, &versionUpdate );
 #endif
-	glConfig.version = versionMajor * 100 + versionMinor;
+	glConfig.version = versionMajor * 100 + versionMinor * 10 + versionUpdate - '0';
 
 #ifdef GL_ES_VERSION_2_0
 	glConfig.ext.multitexture = true;

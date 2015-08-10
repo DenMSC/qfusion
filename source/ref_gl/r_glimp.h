@@ -190,6 +190,7 @@ typedef struct
 				,fragment_precision_high
 				,packed_depth_stencil
 				,texture_lod
+				,multi_draw_indirect
 				;
 	union { char shadow, shadow_samplers; };
 	union { char texture3D, texture_3D; };

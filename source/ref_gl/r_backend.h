@@ -60,6 +60,7 @@ void RB_FrontFace( bool front );
 void RB_FlipFrontFace( void );
 void RB_BindArrayBuffer( int buffer );
 void RB_BindElementArrayBuffer( int buffer );
+void RB_BindDrawIndirectBuffer( int buffer );
 void RB_EnableScissor( bool enable );
 void RB_Scissor( int x, int y, int w, int h );
 void RB_GetScissor( int *x, int *y, int *w, int *h );
@@ -83,6 +84,7 @@ void RB_DrawElements( int firstVert, int numVerts, int firstElem, int numElems,
 void RB_DrawElementsInstanced( int firstVert, int numVerts, int firstElem, int numElems,
 	int firstShadowVert, int numShadowVerts, int firstShadowElem, int numShadowElems,
 	int numInstances, instancePoint_t *instances );
+void RB_MultiDrawElementsIndirect( const void *indirect, unsigned drawCount, size_t size );
 
 void RB_Finish( void );
 void RB_Flush( void );
