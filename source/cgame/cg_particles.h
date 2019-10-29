@@ -3,32 +3,19 @@
 #include "qcommon/types.h"
 #include "client/renderer/renderer.h"
 
-struct ParticleChunk {
-	alignas( 16 ) float t[ 4 ];
-	alignas( 16 ) float lifetime[ 4 ];
+struct Particle {
+	float t;
+	float lifetime;
 
-	alignas( 16 ) float position_x[ 4 ];
-	alignas( 16 ) float position_y[ 4 ];
-	alignas( 16 ) float position_z[ 4 ];
+	Vec3 position;
+	Vec3 velocity;
+	float dvelocity;
 
-	alignas( 16 ) float velocity_x[ 4 ];
-	alignas( 16 ) float velocity_y[ 4 ];
-	alignas( 16 ) float velocity_z[ 4 ];
+	RGBA8 color;
+	RGBA8 end_color;
 
-	alignas( 16 ) float dvelocity[ 4 ];
-
-	alignas( 16 ) float color_r[ 4 ];
-	alignas( 16 ) float color_g[ 4 ];
-	alignas( 16 ) float color_b[ 4 ];
-	alignas( 16 ) float color_a[ 4 ];
-
-	alignas( 16 ) float dcolor_r[ 4 ];
-	alignas( 16 ) float dcolor_g[ 4 ];
-	alignas( 16 ) float dcolor_b[ 4 ];
-	alignas( 16 ) float dcolor_a[ 4 ];
-
-	alignas( 16 ) float size[ 4 ];
-	alignas( 16 ) float dsize[ 4 ];
+	float size;
+	float end_size;
 };
 
 enum EasingFunction {
@@ -40,7 +27,7 @@ enum EasingFunction {
 };
 
 struct ParticleSystem {
-	Span< ParticleChunk > chunks;
+	Span< Particle > particles;
 	size_t num_particles;
 
 	VertexBuffer vb;

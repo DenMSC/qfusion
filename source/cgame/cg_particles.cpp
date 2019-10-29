@@ -24,8 +24,7 @@ void ShutdownParticles() {
 
 ParticleSystem NewParticleSystem( Allocator * a, size_t n, Texture texture ) {
 	ParticleSystem ps = { };
-	size_t num_chunks = AlignPow2( n, size_t( 4 ) ) / 4;
-	ps.chunks = ALLOC_SPAN( a, ParticleChunk, num_chunks );
+	ps.particles = ALLOC_SPAN( a, Particle, n );
 	ps.blend_func = BlendFunc_Add;
 
 	ps.texture = texture;
@@ -66,7 +65,7 @@ ParticleSystem NewParticleSystem( Allocator * a, size_t n, Texture texture ) {
 }
 
 void DeleteParticleSystem( Allocator * a, ParticleSystem ps ) {
-	FREE( a, ps.chunks.ptr );
+	FREE( a, ps.particles.ptr );
 	FREE( a, ps.vb_memory );
 	DeleteVertexBuffer( ps.vb );
 	DeleteMesh( ps.mesh );
@@ -83,42 +82,16 @@ static float EvaluateEasingDerivative( EasingFunction func, float t ) {
 	return 0.0f;
 }
 
-static void UpdateParticleChunk( const ParticleSystem * ps, ParticleChunk * chunk, Vec3 acceleration, float dt ) {
-	for( int i = 0; i < 4; i++ ) {
-		chunk->t[ i ] += dt;
-		float t = chunk->t[ i ] / chunk->lifetime[ i ];
-
-		chunk->velocity_x[ i ] += acceleration.x * dt;
-		chunk->velocity_y[ i ] += acceleration.y * dt;
-		chunk->velocity_z[ i ] += acceleration.z * dt;
-
-		float velocity = Max2( 0.0001f, Length( Vec3( chunk->velocity_x[ i ], chunk->velocity_y[ i ], chunk->velocity_z[ i ] ) ) );
-		float new_velocity = Max2( 0.0001f, velocity + chunk->dvelocity[ i ] * dt );
-		float velocity_scale = new_velocity / velocity;
-
-		chunk->velocity_x[ i ] *= velocity_scale;
-		chunk->velocity_y[ i ] *= velocity_scale;
-		chunk->velocity_z[ i ] *= velocity_scale;
-
-		chunk->position_x[ i ] += chunk->velocity_x[ i ] * dt;
-		chunk->position_y[ i ] += chunk->velocity_y[ i ] * dt;
-		chunk->position_z[ i ] += chunk->velocity_z[ i ] * dt;
-
-		chunk->color_r[ i ] += EvaluateEasingDerivative( ps->color_easing, t ) * chunk->dcolor_r[ i ] * dt;
-		chunk->color_g[ i ] += EvaluateEasingDerivative( ps->color_easing, t ) * chunk->dcolor_g[ i ] * dt;
-		chunk->color_b[ i ] += EvaluateEasingDerivative( ps->color_easing, t ) * chunk->dcolor_b[ i ] * dt;
-		chunk->color_a[ i ] += EvaluateEasingDerivative( ps->color_easing, t ) * chunk->dcolor_a[ i ] * dt;
-
-		chunk->size[ i ] += EvaluateEasingDerivative( ps->size_easing, t ) * chunk->dsize[ i ] * dt;
-	}
+static void UpdateParticle( const ParticleSystem * ps, Particle * particle, Vec3 acceleration, float dt ) {
+	particle->t += dt;
+	float t = particle->t / particle->lifetime;
 }
 
 void UpdateParticleSystem( ParticleSystem * ps, float dt ) {
 	{
 		ZoneScopedN( "Update particles" );
-		size_t active_chunks = AlignPow2( ps->num_particles, size_t( 4 ) ) / 4;
-		for( size_t i = 0; i < active_chunks; i++ ) {
-			UpdateParticleChunk( ps, &ps->chunks[ i ], ps->acceleration, dt );
+		for( size_t i = 0; i < ps->num_particles; i++ ) {
+			UpdateParticle( ps, &ps->particles[ i ], ps->acceleration, dt );
 		}
 	}
 
@@ -126,41 +99,11 @@ void UpdateParticleSystem( ParticleSystem * ps, float dt ) {
 
 	// delete expired particles
 	for( size_t i = 0; i < ps->num_particles; i++ ) {
-		ParticleChunk & chunk = ps->chunks[ i / 4 ];
-		size_t chunk_offset = i % 4;
-
-		if( chunk.t[ chunk_offset ] > chunk.lifetime[ chunk_offset ] ) {
+		Particle & particle = ps->particles[ i ];
+		if( particle.t > particle.lifetime ) {
 			ps->num_particles--;
+			Swap2( &particle, &ps->particles[ ps->num_particles ] );
 			i--;
-
-			ParticleChunk & swap_chunk = ps->chunks[ ps->num_particles / 4 ];
-			size_t swap_offset = ps->num_particles % 4;
-
-			Swap2( &chunk.t[ chunk_offset ], &swap_chunk.t[ swap_offset ] );
-			Swap2( &chunk.lifetime[ chunk_offset ], &swap_chunk.lifetime[ swap_offset ] );
-
-			Swap2( &chunk.position_x[ chunk_offset ], &swap_chunk.position_x[ swap_offset ] );
-			Swap2( &chunk.position_y[ chunk_offset ], &swap_chunk.position_y[ swap_offset ] );
-			Swap2( &chunk.position_z[ chunk_offset ], &swap_chunk.position_z[ swap_offset ] );
-
-			Swap2( &chunk.velocity_x[ chunk_offset ], &swap_chunk.velocity_x[ swap_offset ] );
-			Swap2( &chunk.velocity_y[ chunk_offset ], &swap_chunk.velocity_y[ swap_offset ] );
-			Swap2( &chunk.velocity_z[ chunk_offset ], &swap_chunk.velocity_z[ swap_offset ] );
-
-			Swap2( &chunk.dvelocity[ chunk_offset ], &swap_chunk.dvelocity[ swap_offset ] );
-
-			Swap2( &chunk.color_r[ chunk_offset ], &swap_chunk.color_r[ swap_offset ] );
-			Swap2( &chunk.color_g[ chunk_offset ], &swap_chunk.color_g[ swap_offset ] );
-			Swap2( &chunk.color_b[ chunk_offset ], &swap_chunk.color_b[ swap_offset ] );
-			Swap2( &chunk.color_a[ chunk_offset ], &swap_chunk.color_a[ swap_offset ] );
-
-			Swap2( &chunk.dcolor_r[ chunk_offset ], &swap_chunk.dcolor_r[ swap_offset ] );
-			Swap2( &chunk.dcolor_g[ chunk_offset ], &swap_chunk.dcolor_g[ swap_offset ] );
-			Swap2( &chunk.dcolor_b[ chunk_offset ], &swap_chunk.dcolor_b[ swap_offset ] );
-			Swap2( &chunk.dcolor_a[ chunk_offset ], &swap_chunk.dcolor_a[ swap_offset ] );
-
-			Swap2( &chunk.size[ chunk_offset ], &swap_chunk.size[ swap_offset ] );
-			Swap2( &chunk.dsize[ chunk_offset ], &swap_chunk.dsize[ swap_offset ] );
 		}
 	}
 }
@@ -171,20 +114,55 @@ void DrawParticleSystem( ParticleSystem * ps ) {
 
 	ZoneScoped;
 
-	size_t active_chunks = AlignPow2( ps->num_particles, size_t( 4 ) ) / 4;
-	for( size_t i = 0; i < active_chunks; i++ ) {
-		const ParticleChunk & chunk = ps->chunks[ i ];
-		for( int j = 0; j < 4; j++ ) {
-			ps->vb_memory[ i * 4 + j ].position = Vec3( chunk.position_x[ j ], chunk.position_y[ j ], chunk.position_z[ j ] );
-			ps->vb_memory[ i * 4 + j ].scale = chunk.size[ j ];
-			Vec4 color = Vec4( chunk.color_r[ j ], chunk.color_g[ j ], chunk.color_b[ j ], chunk.color_a[ j ] );
-			ps->vb_memory[ i * 4 + j ].color = RGBA8( color );
-		}
+	for( size_t i = 0; i < ps->num_particles; i++ ) {
+		const Particle & particle = ps->particles[ i ];
+		ps->vb_memory[ i ].position = particle.position;
+		ps->vb_memory[ i ].scale = particle.size;
+		ps->vb_memory[ i ].end_scale = particle.end_size;
+		ps->vb_memory[ i ].color = particle.color;
+		ps->vb_memory[ i ].end_color = particle.end_color;
+		ps->vb_memory[ i ].velocity = particle.velocity;
+		ps->vb_memory[ i ].time = particle.t;
+		ps->vb_memory[ i ].lifetime = particle.lifetime;
 	}
+	
+	// generate color easing curve
+	u8 color_curve[ 256 ];
+	float colorEasingCurrent = 0.0f;
+	for( int i = 1; i < 256; i++ ) {
+		colorEasingCurrent += EvaluateEasingDerivative( ps->color_easing, 1 / 256.0f );
+		color_curve[ i ] = Clamp( 0.0f, colorEasingCurrent, 256.0f );
+	}
+
+	TextureConfig colorEasingCurveConfig;
+	colorEasingCurveConfig.width = 256;
+	colorEasingCurveConfig.height = 1;
+	colorEasingCurveConfig.data = color_curve;
+	colorEasingCurveConfig.format = TextureFormat_R_U8;
+	colorEasingCurveConfig.wrap = TextureWrap_Clamp;
+
+	Texture colorCurve = NewTexture( colorEasingCurveConfig );
+	
+	// generate size easing curve
+	u8 size_curve[ 256 ];
+	float sizeEasingCurrent = 0.0f;
+	for( int i = 1; i < 256; i++ ) {
+		sizeEasingCurrent += EvaluateEasingDerivative( ps->size_easing, 1 / 256.0f );
+		size_curve[ i ] = Clamp( 0.0f, sizeEasingCurrent, 256.0f );
+	}
+
+	TextureConfig sizeEasingCurveConfig;
+	sizeEasingCurveConfig.width = 256;
+	sizeEasingCurveConfig.height = 1;
+	sizeEasingCurveConfig.data = size_curve;
+	sizeEasingCurveConfig.format = TextureFormat_R_U8;
+	sizeEasingCurveConfig.wrap = TextureWrap_Clamp;
+
+	Texture sizeCurve = NewTexture( sizeEasingCurveConfig );
 
 	WriteVertexBuffer( ps->vb, ps->vb_memory, ps->num_particles * sizeof( GPUParticle ) );
 
-	DrawInstancedParticles( ps->mesh, ps->vb, ps->texture, ps->blend_func, ps->num_particles );
+	DrawInstancedParticles( ps->mesh, ps->vb, ps->texture, colorCurve, sizeCurve, ps->blend_func, ps->acceleration, ps->num_particles );
 }
 
 void DrawParticles() {
@@ -197,38 +175,25 @@ void DrawParticles() {
 	DrawParticleSystem( &cgs.smoke );
 }
 
-static void EmitParticle( ParticleSystem * ps, float lifetime, Vec3 position, Vec3 velocity, float dvelocity, Vec4 color, Vec4 dcolor, float size, float dsize ) {
-	if( ps->num_particles == ps->chunks.n * 4 )
+static void EmitParticle( ParticleSystem * ps, float lifetime, Vec3 position, Vec3 velocity, float dvelocity, Vec4 color, Vec4 end_color, float size, float end_size ) {
+	if( ps->num_particles == ps->particles.n )
 		return;
 
-	ParticleChunk & chunk = ps->chunks[ ps->num_particles / 4 ];
-	size_t i = ps->num_particles % 4;
+	Particle & particle = ps->particles[ ps->num_particles ];
 
-	chunk.t[ i ] = 0.0f;
-	chunk.lifetime[ i ] = lifetime;
+	particle.t = 0.0f;
+	particle.lifetime = lifetime;
 
-	chunk.position_x[ i ] = position.x;
-	chunk.position_y[ i ] = position.y;
-	chunk.position_z[ i ] = position.z;
+	particle.position = position;
+	particle.velocity = velocity;
 
-	chunk.velocity_x[ i ] = velocity.x;
-	chunk.velocity_y[ i ] = velocity.y;
-	chunk.velocity_z[ i ] = velocity.z;
+	particle.dvelocity = dvelocity;
 
-	chunk.dvelocity[ i ] = dvelocity;
+	particle.color = RGBA8( color );
+	particle.end_color = RGBA8( end_color );
 
-	chunk.color_r[ i ] = color.x;
-	chunk.color_g[ i ] = color.y;
-	chunk.color_b[ i ] = color.z;
-	chunk.color_a[ i ] = color.w;
-
-	chunk.dcolor_r[ i ] = dcolor.x;
-	chunk.dcolor_g[ i ] = dcolor.y;
-	chunk.dcolor_b[ i ] = dcolor.z;
-	chunk.dcolor_a[ i ] = dcolor.w;
-
-	chunk.size[ i ] = size;
-	chunk.dsize[ i ] = dsize;
+	particle.size = size;
+	particle.end_size = end_size;
 
 	ps->num_particles++;
 }
@@ -273,12 +238,12 @@ static void EmitParticle( ParticleSystem * ps, const ParticleEmitter & emitter, 
 	color.w += SampleRandomDistribution( &cls.rng, emitter.alpha_distribution );
 	color = Clamp01( color );
 
-	Vec4 dcolor = Vec4( emitter.end_color - emitter.start_color.xyz(), -color.w ) / lifetime;
+	Vec4 end_color = Vec4( emitter.end_color, -color.w );
 
 	float size = Max2( 0.0f, emitter.start_size + SampleRandomDistribution( &cls.rng, emitter.size_distribution ) );
-	float dsize = ( emitter.end_size - emitter.start_size ) / lifetime;
+	float end_size = emitter.end_size;
 
-	EmitParticle( ps, lifetime, position, velocity, dvelocity, color, dcolor, size, dsize );
+	EmitParticle( ps, lifetime, position, velocity, dvelocity, color, end_color, size, end_size );
 }
 
 static void EmitParticles( ParticleSystem * ps, const ParticleEmitter & emitter, float dt ) {

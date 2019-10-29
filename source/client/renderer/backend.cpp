@@ -27,7 +27,12 @@ enum VertexAttribute : GLuint {
 
 	VertexAttribute_ParticlePosition,
 	VertexAttribute_ParticleScale,
+	VertexAttribute_ParticleEndScale,
 	VertexAttribute_ParticleColor,
+	VertexAttribute_ParticleEndColor,
+	VertexAttribute_ParticleVelocity,
+	VertexAttribute_ParticleTime,
+	VertexAttribute_ParticleLifeTime,
 };
 
 static const u32 UNIFORM_BUFFER_SIZE = 64 * 1024;
@@ -531,10 +536,23 @@ static void SubmitDrawCall( const DrawCall & dc ) {
 
 		SetupAttribute( VertexAttribute_ParticlePosition, VertexFormat_Floatx3, sizeof( GPUParticle ), offsetof( GPUParticle, position ) );
 		glVertexAttribDivisor( VertexAttribute_ParticlePosition, 1 );
+
 		SetupAttribute( VertexAttribute_ParticleScale, VertexFormat_Floatx1, sizeof( GPUParticle ), offsetof( GPUParticle, scale ) );
 		glVertexAttribDivisor( VertexAttribute_ParticleScale, 1 );
+		SetupAttribute( VertexAttribute_ParticleEndScale, VertexFormat_Floatx1, sizeof( GPUParticle ), offsetof( GPUParticle, end_scale ) );
+		glVertexAttribDivisor( VertexAttribute_ParticleEndScale, 1 );
+
 		SetupAttribute( VertexAttribute_ParticleColor, VertexFormat_U8x4_Norm, sizeof( GPUParticle ), offsetof( GPUParticle, color ) );
 		glVertexAttribDivisor( VertexAttribute_ParticleColor, 1 );
+		SetupAttribute( VertexAttribute_ParticleEndColor, VertexFormat_U8x4_Norm, sizeof( GPUParticle ), offsetof( GPUParticle, end_color ) );
+		glVertexAttribDivisor( VertexAttribute_ParticleEndColor, 1 );
+
+		SetupAttribute( VertexAttribute_ParticleVelocity, VertexFormat_Floatx3, sizeof( GPUParticle ), offsetof( GPUParticle, velocity ) );
+		glVertexAttribDivisor( VertexAttribute_ParticleVelocity, 1 );
+		SetupAttribute( VertexAttribute_ParticleTime, VertexFormat_Floatx1, sizeof( GPUParticle ), offsetof( GPUParticle, time ) );
+		glVertexAttribDivisor( VertexAttribute_ParticleTime, 1 );
+		SetupAttribute( VertexAttribute_ParticleLifeTime, VertexFormat_Floatx1, sizeof( GPUParticle ), offsetof( GPUParticle, lifetime ) );
+		glVertexAttribDivisor( VertexAttribute_ParticleLifeTime, 1 );
 
 		GLenum type = dc.mesh.indices_format == IndexFormat_U16 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT;
 		glDrawElementsInstanced( primitive, dc.num_vertices, type, 0, dc.num_instances );
@@ -978,7 +996,12 @@ bool NewShader( Shader * shader, Span< const char * > srcs, Span< int > lens ) {
 
 	glBindAttribLocation( program, VertexAttribute_ParticlePosition, "a_ParticlePosition" );
 	glBindAttribLocation( program, VertexAttribute_ParticleScale, "a_ParticleScale" );
+	glBindAttribLocation( program, VertexAttribute_ParticleEndScale, "a_ParticleEndScale" );
 	glBindAttribLocation( program, VertexAttribute_ParticleColor, "a_ParticleColor" );
+	glBindAttribLocation( program, VertexAttribute_ParticleEndColor, "a_ParticleEndColor" );
+	glBindAttribLocation( program, VertexAttribute_ParticleVelocity, "a_ParticleVelocity" );
+	glBindAttribLocation( program, VertexAttribute_ParticleTime, "a_ParticleTime" );
+	glBindAttribLocation( program, VertexAttribute_ParticleLifeTime, "a_ParticleLifeTime" );
 
 	glBindFragDataLocation( program, 0, "f_Albedo" );
 	glBindFragDataLocation( program, 1, "f_Normal" );
@@ -1237,7 +1260,7 @@ void DrawMesh( const Mesh & mesh, const PipelineState & pipeline, u32 num_vertic
 	num_vertices_this_frame += mesh.num_vertices;
 }
 
-void DrawInstancedParticles( const Mesh & mesh, VertexBuffer vb, Texture texture, BlendFunc blend_func, u32 num_particles ) {
+void DrawInstancedParticles( const Mesh & mesh, VertexBuffer vb, Texture texture, Texture colorCurve, Texture sizeCurve, BlendFunc blend_func, Vec3 acceleration, u32 num_particles ) {
 	assert( in_frame );
 
 	PipelineState pipeline;
@@ -1247,6 +1270,9 @@ void DrawInstancedParticles( const Mesh & mesh, VertexBuffer vb, Texture texture
 	pipeline.write_depth = false;
 	pipeline.set_uniform( "u_View", frame_static.view_uniforms );
 	pipeline.set_texture( "u_BaseTexture", texture );
+	pipeline.set_uniform( "u_ParticleAcceleration", UploadUniformBlock( acceleration ) );
+	pipeline.set_texture( "u_ColorCurve", colorCurve );
+	pipeline.set_texture( "u_SizeCurve", sizeCurve );
 
 	DrawCall dc = { };
 	dc.mesh = mesh;
