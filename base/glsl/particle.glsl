@@ -7,6 +7,10 @@ qf_varying float v_Time;
 
 #if VERTEX_SHADER
 
+uniform sampler2D u_SizeCurve;
+uniform sampler2D u_ColorCurve;
+uniform vec3 u_ParticleAcceleration;
+
 in vec2 a_Position;
 in vec2 a_TexCoord;
 
@@ -14,14 +18,11 @@ in vec3 a_ParticlePosition;
 
 in float a_ParticleScale;
 in float a_ParticleEndScale;
-uniform sampler2D u_SizeCurve;
 
 in vec4 a_ParticleColor;
 in vec4 a_ParticleEndColor;
-uniform sampler2D u_ColorCurve;
 
 in vec3 a_ParticleVelocity;
-uniform vec3 u_ParticleAcceleration;
 in float a_ParticleTime;
 in float a_ParticleLifeTime;
 

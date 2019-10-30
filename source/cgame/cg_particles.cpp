@@ -24,13 +24,14 @@ void ShutdownParticles() {
 
 ParticleSystem NewParticleSystem( Allocator * a, size_t n, Texture texture ) {
 	ParticleSystem ps = { };
-	ps.particles = ALLOC_SPAN( a, Particle, n );
 	ps.blend_func = BlendFunc_Add;
 
 	ps.texture = texture;
 
 	ps.vb = NewParticleVertexBuffer( n );
-	ps.vb_memory = ALLOC_MANY( a, GPUParticle, n );
+	ps.gpu_particles = ALLOC_SPAN( a, GPUParticle, n );
+
+	UpdateEasingCurves( &ps ); // TODO: needs to be called whenever easing updates
 
 	{
 		constexpr Vec2 verts[] = {
@@ -65,8 +66,7 @@ ParticleSystem NewParticleSystem( Allocator * a, size_t n, Texture texture ) {
 }
 
 void DeleteParticleSystem( Allocator * a, ParticleSystem ps ) {
-	FREE( a, ps.particles.ptr );
-	FREE( a, ps.vb_memory );
+	FREE( a, ps.gpu_particles.ptr );
 	DeleteVertexBuffer( ps.vb );
 	DeleteMesh( ps.mesh );
 }
@@ -82,16 +82,37 @@ static float EvaluateEasingDerivative( EasingFunction func, float t ) {
 	return 0.0f;
 }
 
-static void UpdateParticle( const ParticleSystem * ps, Particle * particle, Vec3 acceleration, float dt ) {
-	particle->t += dt;
-	float t = particle->t / particle->lifetime;
+const int CURVE_WIDTH = 256;
+Texture GenerateEasingCurve( EasingFunction func )
+{
+	u8 curve[ CURVE_WIDTH ];
+	float easingCurrent = 0.0f;
+	for( int i = 1; i < CURVE_WIDTH; i++ ) {
+		easingCurrent += EvaluateEasingDerivative( func, 1.0 / CURVE_WIDTH );
+		curve[ i ] = easingCurrent;
+	}
+
+	TextureConfig curveConfig;
+	curveConfig.width = CURVE_WIDTH;
+	curveConfig.height = 1;
+	curveConfig.data = curve;
+	curveConfig.format = TextureFormat_R_U8;
+	curveConfig.wrap = TextureWrap_Clamp;
+
+	return NewTexture( curveConfig );
+}
+
+void UpdateEasingCurves( ParticleSystem * ps )
+{
+	ps->color_curve = GenerateEasingCurve( ps->color_easing );
+	ps->size_curve = GenerateEasingCurve( ps->size_easing );
 }
 
 void UpdateParticleSystem( ParticleSystem * ps, float dt ) {
 	{
 		ZoneScopedN( "Update particles" );
 		for( size_t i = 0; i < ps->num_particles; i++ ) {
-			UpdateParticle( ps, &ps->particles[ i ], ps->acceleration, dt );
+			ps->gpu_particles[ i ].time += dt;
 		}
 	}
 
@@ -99,10 +120,10 @@ void UpdateParticleSystem( ParticleSystem * ps, float dt ) {
 
 	// delete expired particles
 	for( size_t i = 0; i < ps->num_particles; i++ ) {
-		Particle & particle = ps->particles[ i ];
-		if( particle.t > particle.lifetime ) {
+		GPUParticle & particle = ps->gpu_particles[ i ];
+		if( particle.time > particle.lifetime ) {
 			ps->num_particles--;
-			Swap2( &particle, &ps->particles[ ps->num_particles ] );
+			Swap2( &particle, &ps->gpu_particles[ ps->num_particles ] );
 			i--;
 		}
 	}
@@ -114,55 +135,9 @@ void DrawParticleSystem( ParticleSystem * ps ) {
 
 	ZoneScoped;
 
-	for( size_t i = 0; i < ps->num_particles; i++ ) {
-		const Particle & particle = ps->particles[ i ];
-		ps->vb_memory[ i ].position = particle.position;
-		ps->vb_memory[ i ].scale = particle.size;
-		ps->vb_memory[ i ].end_scale = particle.end_size;
-		ps->vb_memory[ i ].color = particle.color;
-		ps->vb_memory[ i ].end_color = particle.end_color;
-		ps->vb_memory[ i ].velocity = particle.velocity;
-		ps->vb_memory[ i ].time = particle.t;
-		ps->vb_memory[ i ].lifetime = particle.lifetime;
-	}
-	
-	// generate color easing curve
-	u8 color_curve[ 256 ];
-	float colorEasingCurrent = 0.0f;
-	for( int i = 1; i < 256; i++ ) {
-		colorEasingCurrent += EvaluateEasingDerivative( ps->color_easing, 1 / 256.0f );
-		color_curve[ i ] = Clamp( 0.0f, colorEasingCurrent, 256.0f );
-	}
+	WriteVertexBuffer( ps->vb, ps->gpu_particles.ptr, ps->num_particles * sizeof( GPUParticle ) );
 
-	TextureConfig colorEasingCurveConfig;
-	colorEasingCurveConfig.width = 256;
-	colorEasingCurveConfig.height = 1;
-	colorEasingCurveConfig.data = color_curve;
-	colorEasingCurveConfig.format = TextureFormat_R_U8;
-	colorEasingCurveConfig.wrap = TextureWrap_Clamp;
-
-	Texture colorCurve = NewTexture( colorEasingCurveConfig );
-	
-	// generate size easing curve
-	u8 size_curve[ 256 ];
-	float sizeEasingCurrent = 0.0f;
-	for( int i = 1; i < 256; i++ ) {
-		sizeEasingCurrent += EvaluateEasingDerivative( ps->size_easing, 1 / 256.0f );
-		size_curve[ i ] = Clamp( 0.0f, sizeEasingCurrent, 256.0f );
-	}
-
-	TextureConfig sizeEasingCurveConfig;
-	sizeEasingCurveConfig.width = 256;
-	sizeEasingCurveConfig.height = 1;
-	sizeEasingCurveConfig.data = size_curve;
-	sizeEasingCurveConfig.format = TextureFormat_R_U8;
-	sizeEasingCurveConfig.wrap = TextureWrap_Clamp;
-
-	Texture sizeCurve = NewTexture( sizeEasingCurveConfig );
-
-	WriteVertexBuffer( ps->vb, ps->vb_memory, ps->num_particles * sizeof( GPUParticle ) );
-
-	DrawInstancedParticles( ps->mesh, ps->vb, ps->texture, colorCurve, sizeCurve, ps->blend_func, ps->acceleration, ps->num_particles );
+	DrawInstancedParticles( ps->mesh, ps->vb, ps->texture, ps->color_curve, ps->size_curve, ps->blend_func, ps->acceleration, ps->num_particles );
 }
 
 void DrawParticles() {
@@ -176,24 +151,18 @@ void DrawParticles() {
 }
 
 static void EmitParticle( ParticleSystem * ps, float lifetime, Vec3 position, Vec3 velocity, float dvelocity, Vec4 color, Vec4 end_color, float size, float end_size ) {
-	if( ps->num_particles == ps->particles.n )
+	if( ps->num_particles == ps->gpu_particles.n )
 		return;
 
-	Particle & particle = ps->particles[ ps->num_particles ];
-
-	particle.t = 0.0f;
-	particle.lifetime = lifetime;
-
-	particle.position = position;
-	particle.velocity = velocity;
-
-	particle.dvelocity = dvelocity;
-
-	particle.color = RGBA8( color );
-	particle.end_color = RGBA8( end_color );
-
-	particle.size = size;
-	particle.end_size = end_size;
+	GPUParticle & gpu_particle = ps->gpu_particles[ ps->num_particles ];
+	gpu_particle.position = position;
+	gpu_particle.scale = size;
+	gpu_particle.end_scale = end_size;
+	gpu_particle.color = RGBA8( color );
+	gpu_particle.end_color = RGBA8( end_color );
+	gpu_particle.velocity = velocity;
+	gpu_particle.time = 0.0f;
+	gpu_particle.lifetime = lifetime;
 
 	ps->num_particles++;
 }

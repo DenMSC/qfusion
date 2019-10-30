@@ -3,21 +3,6 @@
 #include "qcommon/types.h"
 #include "client/renderer/renderer.h"
 
-struct Particle {
-	float t;
-	float lifetime;
-
-	Vec3 position;
-	Vec3 velocity;
-	float dvelocity;
-
-	RGBA8 color;
-	RGBA8 end_color;
-
-	float size;
-	float end_size;
-};
-
 enum EasingFunction {
 	EasingFunction_Linear,
 	EasingFunction_Quadratic,
@@ -27,11 +12,9 @@ enum EasingFunction {
 };
 
 struct ParticleSystem {
-	Span< Particle > particles;
-	size_t num_particles;
-
 	VertexBuffer vb;
-	GPUParticle * vb_memory;
+	Span< GPUParticle > gpu_particles;
+	size_t num_particles;
 	Mesh mesh;
 
 	EasingFunction color_easing;
@@ -40,6 +23,9 @@ struct ParticleSystem {
 	BlendFunc blend_func;
 	Texture texture;
 	Vec3 acceleration;
+
+	Texture color_curve;
+	Texture size_curve;
 };
 
 enum RandomDistribution3DType : u8 {
@@ -119,6 +105,8 @@ void ShutdownParticles();
 
 ParticleSystem NewParticleSystem( Allocator * a, size_t n, Texture texture );
 void DeleteParticleSystem( Allocator * a, ParticleSystem ps );
+
+void UpdateEasingCurves( ParticleSystem * ps );
 
 void EmitParticles( ParticleSystem * ps, const ParticleEmitter & emitter );
 
