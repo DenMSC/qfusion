@@ -561,6 +561,12 @@ Vec2 GetMouseMovement() {
 	return delta;
 }
 
+Vec2 GetMousePos() {
+	double x, y;
+	glfwGetCursorPos( window, &x, &y );
+	return Vec2( x, y );
+}
+
 void GlfwInputFrame() {
 	// show cursor if there are any imgui windows accepting inputs
 	bool gui_active = false;

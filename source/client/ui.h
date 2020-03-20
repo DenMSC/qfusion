@@ -30,3 +30,7 @@ void ColumnRightText( const char * str );
 void WindowCenterTextXY( const char * str );
 
 Vec4 AttentionGettingColor();
+
+void NoesisInit();
+void NoesisFrame( int width, int height, int time );
+void NoesisMouseFunc( int button, int state, int x, int y );
